@@ -1,4 +1,6 @@
 research_env/
+data/
+results/
 __pycache__/
 .ipynb_checkpoints/
 .DS_Store
