@@ -1,4 +1,9 @@
+import random
+
 def partition(arr, low, high):
+    pivot_index = random.randint(low, high)
+    arr[pivot_index], arr[high] = arr[high], arr[pivot_index]
+
     pivot = arr[high]
     i = low - 1
 
@@ -12,15 +17,27 @@ def partition(arr, low, high):
 
 
 def quick_sort(arr):
-    _quick_sort(arr, 0, len(arr) - 1)
+    arr = arr.copy()
+    _quick_sort_iterative(arr, 0, len(arr) - 1)
     return arr
 
 
-def _quick_sort(arr, low, high):
-    if low < high:
-        pivot_index = partition(arr, low, high)
-        _quick_sort(arr, low, pivot_index - 1)
-        _quick_sort(arr, pivot_index + 1, high)
-        
+def _quick_sort_iterative(arr, low, high):
+    stack = [(low, high)]
+
+    while stack:
+        low, high = stack.pop()
+
+        if low < high:
+            p = partition(arr, low, high)
+
+            # push larger partition first (slightly optimized stack usage)
+            if p - 1 - low > high - (p + 1):
+                stack.append((low, p - 1))
+                stack.append((p + 1, high))
+            else:
+                stack.append((p + 1, high))
+                stack.append((low, p - 1))
+                
 arr = [5,2,9,1,3]
 print(quick_sort(arr))
