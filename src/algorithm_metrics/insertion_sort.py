@@ -1,12 +1,12 @@
 import time
 
 comparison_count = 0
-swap_count       = 0
+move_count       = 0
 elapsed_ms       = 0
 
 
 def insertion_sort(arr):
-    global comparison_count, swap_count, elapsed_ms
+    global comparison_count, move_count, elapsed_ms
     
     start_time = time.perf_counter_ns()
     
@@ -19,7 +19,7 @@ def insertion_sort(arr):
 
             if arr[j] > key:
                 arr[j + 1] = arr[j]
-                swap_count  += 1
+                move_count  += 1
                 
                 j -= 1
                 
@@ -35,5 +35,5 @@ arr = [5,2,9,1,3]
 result = insertion_sort(arr.copy())
 print(f"Sorted array     : {result}")
 print(f"Comparison count : {comparison_count}")
-print(f"Swap count       : {swap_count}")
+print(f"Move count       : {move_count}")
 print(f"Elapsed (ms)     : {elapsed_ms:.6f}")
