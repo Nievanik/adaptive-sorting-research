@@ -3,7 +3,7 @@
 ## Research Overview
 
 - **Project**: Mid-Execution Sorting Adaptation via Machine Learning
-- **Researcher**: Keepa Maharjan
+- **Researcher**: Keepa Maharjan and Nievanik Thapa Shrestha
 - **Advisor**: Prof. Vladislav D. Veksler
 - **Core Idea**: Run a sorting algorithm, pause at a **50% execution checkpoint**, extract runtime features, and use an ML model (Decision Tree / Random Forest) to decide whether to switch to a better algorithm mid-execution.
 
