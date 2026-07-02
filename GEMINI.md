@@ -33,7 +33,7 @@ adaptive-sorting-research/
 │   │   ├── insertion_sort.py
 │   │   ├── merge_sort.py
 │   │   └── quick_sort.py
-│   ├── checkpoint/           ← EMPTY — next critical module to build
+│   ├── checkpoint/           ← Instrumented checkpoint versions and runner
 │   ├── datasets/
 │   │   ├── generator.py      ← 7 input type generators
 │   │   └── create_datasets.py ← Saves datasets as JSON to data/
@@ -82,11 +82,11 @@ Each metrics module exposes these globals after calling its sort function:
   so that the reset only fires at the top-level call, not on every recursive call.
 
 ### Benchmark
-- `benchmark.py` uses `ALGO_REGISTRY` dict — maps algo name → its metrics module
-- `run_sort(module, arr)` is the single call site: calls sort, reads globals, returns dict
+- `benchmark.py` uses `ALGO_REGISTRY` dict — validation keys for algorithms
+- `run_sort_with_checkpoint(algo_name, arr)` is the single call site: runs to 50% checkpoint, then continues to completion alongside all switching combinations
 - Results saved to `results/<algorithm_name>/<size>.json`
-- Format per entry: `algorithm`, `type`, `size`, `time_ms`, `comparisons`, `moves`
-- Always pass `arr.copy()` into `run_sort` — insertion_sort mutates in place
+- Format per entry contains nested dicts for `checkpoint`, `continue`, and `switch_<algo>` paths. Each path includes: `time_ms`, `comparisons`, `moves`, and an isolated `overhead` dictionary (containing setup & merge costs).
+- Always pass `arr.copy()` into runner — insertion_sort mutates in place
 
 ### Move Count Convention
 - 1 move = 1 element write
@@ -145,10 +145,11 @@ Each metrics module exposes these globals after calling its sort function:
 - [x] benchmark.py uses metrics modules, records comparisons + moves
 - [x] Full benchmark run complete (all 3 algos × all 5 sizes × all 7 types)
 - [x] findings.md created with Phase 1 empirical results
-- [ ] Build `src/checkpoint/` module — the 50% checkpoint logic (NEXT PRIORITY)
-- [ ] Design checkpoint: comparison-based pause, return partial array state
+- [x] Build `src/checkpoint/` module — the 50% checkpoint logic
+- [x] Design checkpoint: comparison-based pause, return partial array state
+- [x] Integrate checkpoint version into benchmark.py (records 50% and 100% metrics)
 - [ ] Add real-world numeric dataset to generator
-- [ ] Build Switching Cost Matrix (run all combos: start algo A, switch to B at 50%)
+- [x] Build Switching Cost Matrix (run all combos: start algo A, switch to B at 50%)
 - [ ] Feature extraction module
 - [ ] ML training pipeline (Decision Tree + Random Forest)
 - [ ] Adaptive system prototype

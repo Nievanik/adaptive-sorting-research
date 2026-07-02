@@ -2,11 +2,7 @@ import json
 from pathlib import Path
 
 from src.data_loader import load_dataset
-
-import src.algorithm_metrics.insertion_sort as ins_mod
-import src.algorithm_metrics.merge_sort     as mrg_mod
-import src.algorithm_metrics.quick_sort     as qck_mod
-
+from src.checkpoint.runner import run_to_checkpoint, continue_sort, switch_sort
 
 DATA_TYPES = [
     "random",
@@ -18,13 +14,11 @@ DATA_TYPES = [
     "edge_cases",
 ]
 
-# Registry: algorithm name → its metrics module.
-# The module's sort function resets counters and captures elapsed_ms internally,
-# so no external timer wrapper is needed here.
+# Registry of supported algorithm names for validation.
 ALGO_REGISTRY = {
-    "insertion_sort": ins_mod,
-    "merge_sort":     mrg_mod,
-    "quick_sort":     qck_mod,
+    "insertion_sort": None,
+    "merge_sort":     None,
+    "quick_sort":     None,
 }
 
 
@@ -32,25 +26,49 @@ ALGO_REGISTRY = {
 # CORE RUNNER
 # =========================
 
-def run_sort(module, arr):
+def run_sort_with_checkpoint(algo_name, arr):
     """
-    Call the public sort function from a metrics module, then read back
-    the metrics it recorded internally.
-
-    Each metrics module's sort function already handles:
-      - resetting comparison_count / move_count to 0
-      - timing the full sort (stored as module.elapsed_ms)
-
-    We always pass arr.copy() so the original dataset is never mutated,
-    even for insertion_sort which sorts in place.
+    Run the algorithm to its 50% checkpoint, record the metrics,
+    then run both continuation and all possible switching options.
+    
+    Returns a unified dictionary containing metrics for:
+      - checkpoint state
+      - continue path
+      - switch to option A path
+      - switch to option B path
     """
-    fn_name = module.__name__.split(".")[-1]   # e.g. "insertion_sort"
-    getattr(module, fn_name)(arr.copy())
-
+    state = run_to_checkpoint(algo_name, arr)
+    cont_res = continue_sort(state)
+    
+    other_algos = [name for name in ALGO_REGISTRY if name != algo_name]
+    switch_res_a = switch_sort(state, other_algos[0])
+    switch_res_b = switch_sort(state, other_algos[1])
+    
     return {
-        "time_ms":     module.elapsed_ms,
-        "comparisons": module.comparison_count,
-        "moves":       module.move_count,
+        "checkpoint": {
+            "checkpoint_pct":         state["checkpoint_pct"],
+            "time_ms":                state["time_ms"],
+            "comparisons":            state["comparisons"],
+            "moves":                  state["moves"]
+        },
+        "continue": {
+            "time_ms":                cont_res["total_time_ms"],
+            "comparisons":            cont_res["total_comparisons"],
+            "moves":                  cont_res["total_moves"],
+            "overhead":               cont_res["overhead"]
+        },
+        f"switch_{other_algos[0]}": {
+            "time_ms":                switch_res_a["total_time_ms"],
+            "comparisons":            switch_res_a["total_comparisons"],
+            "moves":                  switch_res_a["total_moves"],
+            "overhead":               switch_res_a["overhead"]
+        },
+        f"switch_{other_algos[1]}": {
+            "time_ms":                switch_res_b["total_time_ms"],
+            "comparisons":            switch_res_b["total_comparisons"],
+            "moves":                  switch_res_b["total_moves"],
+            "overhead":               switch_res_b["overhead"]
+        }
     }
 
 
@@ -66,12 +84,12 @@ def run_benchmark(size, algo_names, save=True):
 
     for algo_name in algo_names:
 
-        module = ALGO_REGISTRY.get(algo_name)
-        if module is None:
+        if algo_name not in ALGO_REGISTRY:
             print(f"⚠️  Unknown algorithm: {algo_name} — skipping")
             continue
 
-        print(f"\n🔹 Algorithm: {algo_name}")
+        other_algos = [name for name in ALGO_REGISTRY if name != algo_name]
+        print(f"\n🔹 Algorithm: {algo_name} (Alternatives: {', '.join(other_algos)})")
         results = []
 
         for dtype in DATA_TYPES:
@@ -90,23 +108,25 @@ def run_benchmark(size, algo_names, save=True):
                     case_name = edge_files[i].stem if i < len(edge_files) else f"case_{i}"
                     data      = case if isinstance(case, list) else []
 
-                    metrics = run_sort(module, data)
+                    metrics = run_sort_with_checkpoint(algo_name, data)
 
                     print(
-                        f"  {algo_name} | edge_cases ({case_name}) | {size} → "
-                        f"{metrics['time_ms']:.4f} ms  "
-                        f"comparisons={metrics['comparisons']}  "
-                        f"moves={metrics['moves']}"
+                        f"  {algo_name} | edge_cases ({case_name}) | {size} →\n"
+                        f"    [CP {metrics['checkpoint']['checkpoint_pct']:.1f}%] cmp={metrics['checkpoint']['comparisons']}  mv={metrics['checkpoint']['moves']}  time={metrics['checkpoint']['time_ms']:.4f} ms\n"
+                        f"    [CONT     ] cmp={metrics['continue']['comparisons']}  mv={metrics['continue']['moves']}  time={metrics['continue']['time_ms']:.4f} ms\n"
+                        f"    [SW {other_algos[0]:<10}] cmp={metrics[f'switch_{other_algos[0]}']['comparisons']}  mv={metrics[f'switch_{other_algos[0]}']['moves']}  time={metrics[f'switch_{other_algos[0]}']['time_ms']:.4f} ms\n"
+                        f"    [SW {other_algos[1]:<10}] cmp={metrics[f'switch_{other_algos[1]}']['comparisons']}  mv={metrics[f'switch_{other_algos[1]}']['moves']}  time={metrics[f'switch_{other_algos[1]}']['time_ms']:.4f} ms"
                     )
 
                     results.append({
-                        "algorithm":   algo_name,
-                        "type":        "edge_cases",
-                        "case":        case_name,
-                        "size":        size,
-                        "time_ms":     metrics["time_ms"],
-                        "comparisons": metrics["comparisons"],
-                        "moves":       metrics["moves"],
+                        "algorithm":              algo_name,
+                        "type":                   "edge_cases",
+                        "case":                   case_name,
+                        "size":                   size,
+                        "checkpoint":             metrics["checkpoint"],
+                        "continue":               metrics["continue"],
+                        f"switch_{other_algos[0]}": metrics[f"switch_{other_algos[0]}"],
+                        f"switch_{other_algos[1]}": metrics[f"switch_{other_algos[1]}"]
                     })
 
             # =========================
@@ -114,22 +134,24 @@ def run_benchmark(size, algo_names, save=True):
             # =========================
             else:
 
-                metrics = run_sort(module, loaded)
+                metrics = run_sort_with_checkpoint(algo_name, loaded)
 
                 print(
-                    f"  {algo_name} | {dtype} | {size} → "
-                    f"{metrics['time_ms']:.4f} ms  "
-                    f"comparisons={metrics['comparisons']}  "
-                    f"moves={metrics['moves']}"
+                    f"  {algo_name} | {dtype} | {size} →\n"
+                    f"    [CP {metrics['checkpoint']['checkpoint_pct']:.1f}%] cmp={metrics['checkpoint']['comparisons']}  mv={metrics['checkpoint']['moves']}  time={metrics['checkpoint']['time_ms']:.4f} ms\n"
+                    f"    [CONT     ] cmp={metrics['continue']['comparisons']}  mv={metrics['continue']['moves']}  time={metrics['continue']['time_ms']:.4f} ms\n"
+                    f"    [SW {other_algos[0]:<10}] cmp={metrics[f'switch_{other_algos[0]}']['comparisons']}  mv={metrics[f'switch_{other_algos[0]}']['moves']}  time={metrics[f'switch_{other_algos[0]}']['time_ms']:.4f} ms\n"
+                    f"    [SW {other_algos[1]:<10}] cmp={metrics[f'switch_{other_algos[1]}']['comparisons']}  mv={metrics[f'switch_{other_algos[1]}']['moves']}  time={metrics[f'switch_{other_algos[1]}']['time_ms']:.4f} ms"
                 )
 
                 results.append({
-                    "algorithm":   algo_name,
-                    "type":        dtype,
-                    "size":        size,
-                    "time_ms":     metrics["time_ms"],
-                    "comparisons": metrics["comparisons"],
-                    "moves":       metrics["moves"],
+                    "algorithm":              algo_name,
+                    "type":                   dtype,
+                    "size":                   size,
+                    "checkpoint":             metrics["checkpoint"],
+                    "continue":               metrics["continue"],
+                    f"switch_{other_algos[0]}": metrics[f"switch_{other_algos[0]}"],
+                    f"switch_{other_algos[1]}": metrics[f"switch_{other_algos[1]}"]
                 })
 
         if save:
