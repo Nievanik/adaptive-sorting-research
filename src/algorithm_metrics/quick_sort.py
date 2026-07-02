@@ -2,7 +2,8 @@ import random
 import time
 
 comparison_count = 0
-move_count = 0
+move_count       = 0
+elapsed_ms       = 0
 
 
 def partition(arr, low, high):
@@ -10,33 +11,46 @@ def partition(arr, low, high):
 
     pivot_index = random.randint(low, high)
 
-    # swap pivot to end (3 moves)
+    # swap pivot to end — 2 element writes
     arr[pivot_index], arr[high] = arr[high], arr[pivot_index]
-    move_count += 3
+    move_count += 2
 
     pivot = arr[high]
-    i = low - 1
+    i     = low - 1
 
     for j in range(low, high):
         comparison_count += 1
 
         if arr[j] <= pivot:
             i += 1
-
-            # swap arr[i], arr[j] (3 moves)
+            # swap arr[i], arr[j] — 2 element writes
             arr[i], arr[j] = arr[j], arr[i]
-            move_count += 3
+            move_count += 2
 
-    # final pivot swap (3 moves)
+    # final pivot placement — 2 element writes
     arr[i + 1], arr[high] = arr[high], arr[i + 1]
-    move_count += 3
+    move_count += 2
 
     return i + 1
 
 
 def quick_sort(arr):
+    """
+    Public entry point. Resets all metrics, copies input,
+    times the full sort, and delegates to the iterative helper.
+    """
+    global comparison_count, move_count, elapsed_ms
+
+    # Reset metrics at the start of every call
+    comparison_count = 0
+    move_count       = 0
+
     arr = arr.copy()
+
+    start = time.perf_counter_ns()
     _quick_sort_iterative(arr, 0, len(arr) - 1)
+    elapsed_ms = (time.perf_counter_ns() - start) / 1_000_000
+
     return arr
 
 
@@ -49,7 +63,7 @@ def _quick_sort_iterative(arr, low, high):
         if low < high:
             p = partition(arr, low, high)
 
-            # push larger partition first (optimization)
+            # push larger partition first (slightly optimized stack usage)
             if (p - 1 - low) > (high - (p + 1)):
                 stack.append((low, p - 1))
                 stack.append((p + 1, high))
@@ -59,19 +73,8 @@ def _quick_sort_iterative(arr, low, high):
 
 
 if __name__ == "__main__":
-
-    arr = [5, 2, 9, 1, 3]
-
-    # reset metrics
-    comparison_count = 0
-    move_count = 0
-
-    start = time.perf_counter_ns()
-
+    arr    = [5, 2, 9, 1, 3]
     result = quick_sort(arr.copy())
-
-    elapsed_ms = (time.perf_counter_ns() - start) / 1_000_000
-
     print(f"Sorted array     : {result}")
     print(f"Comparison count : {comparison_count}")
     print(f"Move count       : {move_count}")

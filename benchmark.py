@@ -1,8 +1,11 @@
-import time
 import json
 from pathlib import Path
 
 from src.data_loader import load_dataset
+
+import src.algorithm_metrics.insertion_sort as ins_mod
+import src.algorithm_metrics.merge_sort     as mrg_mod
+import src.algorithm_metrics.quick_sort     as qck_mod
 
 
 DATA_TYPES = [
@@ -12,35 +15,63 @@ DATA_TYPES = [
     "nearly_sorted",
     "duplicate_heavy",
     "all_equal",
-    "edge_cases"
+    "edge_cases",
 ]
 
+# Registry: algorithm name → its metrics module.
+# The module's sort function resets counters and captures elapsed_ms internally,
+# so no external timer wrapper is needed here.
+ALGO_REGISTRY = {
+    "insertion_sort": ins_mod,
+    "merge_sort":     mrg_mod,
+    "quick_sort":     qck_mod,
+}
+
 
 # =========================
-# TIMER
+# CORE RUNNER
 # =========================
 
-def measure(sort_fn, arr):
-    start = time.perf_counter()
-    sort_fn(arr)
-    end = time.perf_counter()
-    return end - start
+def run_sort(module, arr):
+    """
+    Call the public sort function from a metrics module, then read back
+    the metrics it recorded internally.
+
+    Each metrics module's sort function already handles:
+      - resetting comparison_count / move_count to 0
+      - timing the full sort (stored as module.elapsed_ms)
+
+    We always pass arr.copy() so the original dataset is never mutated,
+    even for insertion_sort which sorts in place.
+    """
+    fn_name = module.__name__.split(".")[-1]   # e.g. "insertion_sort"
+    getattr(module, fn_name)(arr.copy())
+
+    return {
+        "time_ms":     module.elapsed_ms,
+        "comparisons": module.comparison_count,
+        "moves":       module.move_count,
+    }
 
 
 # =========================
 # CORE BENCHMARK
 # =========================
 
-def run_benchmark(size, algorithms, save=True):
+def run_benchmark(size, algo_names, save=True):
 
     print("\n" + "=" * 60)
     print(f"🚀 RUNNING SIZE = {size}")
     print("=" * 60)
 
-    for algo_name, algo_fn in algorithms.items():
+    for algo_name in algo_names:
+
+        module = ALGO_REGISTRY.get(algo_name)
+        if module is None:
+            print(f"⚠️  Unknown algorithm: {algo_name} — skipping")
+            continue
 
         print(f"\n🔹 Algorithm: {algo_name}")
-
         results = []
 
         for dtype in DATA_TYPES:
@@ -48,31 +79,34 @@ def run_benchmark(size, algorithms, save=True):
             loaded = load_dataset(dtype, size)
 
             # =========================
-            # EDGE CASES (UPDATED LOGIC)
+            # EDGE CASES
             # =========================
             if dtype == "edge_cases":
 
-                # loaded = list of arrays from multiple files
-                # we infer case name from file order via loader tweak OR fallback index
-                edge_dir = Path("data") / "edge_cases"
+                edge_dir   = Path("data") / "edge_cases"
                 edge_files = sorted(edge_dir.glob("*.json"))
 
                 for i, case in enumerate(loaded):
-
                     case_name = edge_files[i].stem if i < len(edge_files) else f"case_{i}"
+                    data      = case if isinstance(case, list) else []
 
-                    data = case.copy() if isinstance(case, list) else case
+                    metrics = run_sort(module, data)
 
-                    t = measure(algo_fn, data)
-
-                    print(f"{algo_name} | edge_cases ({case_name}) | {size} → {t:.6f}s")
+                    print(
+                        f"  {algo_name} | edge_cases ({case_name}) | {size} → "
+                        f"{metrics['time_ms']:.4f} ms  "
+                        f"comparisons={metrics['comparisons']}  "
+                        f"moves={metrics['moves']}"
+                    )
 
                     results.append({
-                        "algorithm": algo_name,
-                        "type": "edge_cases",
-                        "case": case_name,
-                        "size": size,
-                        "time": t
+                        "algorithm":   algo_name,
+                        "type":        "edge_cases",
+                        "case":        case_name,
+                        "size":        size,
+                        "time_ms":     metrics["time_ms"],
+                        "comparisons": metrics["comparisons"],
+                        "moves":       metrics["moves"],
                     })
 
             # =========================
@@ -80,16 +114,22 @@ def run_benchmark(size, algorithms, save=True):
             # =========================
             else:
 
-                arr = loaded.copy()
-                t = measure(algo_fn, arr)
+                metrics = run_sort(module, loaded)
 
-                print(f"{algo_name} | {dtype} | {size} → {t:.6f}s")
+                print(
+                    f"  {algo_name} | {dtype} | {size} → "
+                    f"{metrics['time_ms']:.4f} ms  "
+                    f"comparisons={metrics['comparisons']}  "
+                    f"moves={metrics['moves']}"
+                )
 
                 results.append({
-                    "algorithm": algo_name,
-                    "type": dtype,
-                    "size": size,
-                    "time": t
+                    "algorithm":   algo_name,
+                    "type":        dtype,
+                    "size":        size,
+                    "time_ms":     metrics["time_ms"],
+                    "comparisons": metrics["comparisons"],
+                    "moves":       metrics["moves"],
                 })
 
         if save:
@@ -102,7 +142,7 @@ def run_benchmark(size, algorithms, save=True):
 
 def save_results(algo_name, size, results):
 
-    base_dir = Path("results") / algo_name
+    base_dir  = Path("results") / algo_name
     base_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = base_dir / f"{size}.json"

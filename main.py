@@ -1,28 +1,18 @@
 import argparse
-from benchmark import run_benchmark
-
-from src.algorithms.quick_sort import quick_sort
-from src.algorithms.merge_sort import merge_sort
-from src.algorithms.insertion_sort import insertion_sort
-
-
-def get_algorithms():
-    return {
-        "quick_sort": quick_sort,
-        "merge_sort": merge_sort,
-        "insertion_sort": insertion_sort
-    }
+from benchmark import run_benchmark, ALGO_REGISTRY
 
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Run adaptive sorting benchmarks with full metrics."
+    )
 
     parser.add_argument(
         "--algo",
         nargs="+",
         required=True,
-        help="Choose algorithms: quick_sort merge_sort insertion_sort"
+        help=f"Algorithms to benchmark: {' '.join(ALGO_REGISTRY.keys())}"
     )
 
     parser.add_argument(
@@ -30,28 +20,20 @@ if __name__ == "__main__":
         nargs="+",
         type=int,
         required=True,
-        help="Dataset sizes: 100 500 1000 ..."
+        help="Dataset sizes to run (e.g. 100 500 1000 5000 10000)"
     )
 
     args = parser.parse_args()
 
-    all_algos = get_algorithms()
+    valid   = [a for a in args.algo if a in ALGO_REGISTRY]
+    invalid = [a for a in args.algo if a not in ALGO_REGISTRY]
 
-    selected_algos = {}
+    for name in invalid:
+        print(f"⚠️  Unknown algorithm: {name} — skipping")
 
-    for a in args.algo:
-        if a in all_algos:
-            selected_algos[a] = all_algos[a]
-        else:
-            print(f"❌ Unknown algorithm: {a}")
-
-    if not selected_algos:
-        print("❌ No valid algorithms selected")
-        exit()
+    if not valid:
+        print("No valid algorithms selected. Exiting.")
+        exit(1)
 
     for size in args.size:
-        run_benchmark(
-            size=size,
-            algorithms=selected_algos,
-            save=True
-        )
+        run_benchmark(size=size, algo_names=valid, save=True)
