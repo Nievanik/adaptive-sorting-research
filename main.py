@@ -26,6 +26,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     valid   = [a for a in args.algo if a in ALGO_REGISTRY]
+
     invalid = [a for a in args.algo if a not in ALGO_REGISTRY]
 
     for name in invalid:
