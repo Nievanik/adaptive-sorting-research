@@ -347,3 +347,99 @@ class TestNoSortingCodeImported:
                       and m != "__main__"}
         assert not suspicious, \
             f"Potential sorting modules imported: {suspicious}"
+
+
+# ---------------------------------------------------------------------------
+# New Pipeline & Edge Case Tests
+# ---------------------------------------------------------------------------
+
+from ml.src.extract_dataset import is_valid_record, extract_dataset, save_dataset
+from ml.src.validate_dataset import LEAKAGE_COLS, ALLOWED_FEATURES
+
+class TestPipelineAndEdgeCases:
+
+    def test_invalid_records_detected(self):
+        # Missing required field
+        assert not is_valid_record({"algorithm": "insertion_sort"})
+
+        # Non-numeric size
+        assert not is_valid_record({
+            "algorithm": "insertion_sort",
+            "type": "random",
+            "size": "one hundred",
+            "checkpoint": {"checkpoint_pct": 50.0, "time_ms": 0.1, "comparisons": 10, "moves": 10},
+            "continue": {"time_ms": 0.2, "comparisons": 20, "moves": 20}
+        })
+
+        # Correct structure
+        assert is_valid_record({
+            "algorithm": "insertion_sort",
+            "type": "random",
+            "size": 100,
+            "checkpoint": {"checkpoint_pct": 50.0, "time_ms": 0.1, "comparisons": 10, "moves": 10},
+            "continue": {"time_ms": 0.2, "comparisons": 20, "moves": 20}
+        })
+
+    def test_tie_breaking_behavior(self):
+        # continue wins over switches if equal remaining time
+        row = {
+            "algorithm": "insertion_sort",
+            "input_type": "random",
+            "size": 100,
+            "checkpoint_time_ms": 0.1,
+            "continue_time_ms": 0.2,
+            "switch_quick_sort_time_ms": 0.2,
+            "switch_merge_sort_time_ms": 0.2,
+        }
+        df = pd.DataFrame([row])
+        df = assign_labels(df)
+        assert df.iloc[0]["best_action"] == "continue"
+
+        # switch_quick_sort wins over switch_merge_sort if equal remaining time
+        row = {
+            "algorithm": "insertion_sort",
+            "input_type": "random",
+            "size": 100,
+            "checkpoint_time_ms": 0.1,
+            "continue_time_ms": 0.5,
+            "switch_quick_sort_time_ms": 0.2,
+            "switch_merge_sort_time_ms": 0.2,
+        }
+        df = pd.DataFrame([row])
+        df = assign_labels(df)
+        assert df.iloc[0]["best_action"] == "switch_quick_sort"
+
+    def test_missing_switch_alternatives(self):
+        row = {
+            "algorithm": "insertion_sort",
+            "input_type": "random",
+            "size": 100,
+            "checkpoint_time_ms": 0.1,
+            "continue_time_ms": 0.5,
+            # switch_quick_sort is missing/NaN
+            "switch_quick_sort_time_ms": None,
+            "switch_merge_sort_time_ms": 0.2,
+        }
+        df = pd.DataFrame([row])
+        df = assign_labels(df)
+        assert df.iloc[0]["best_action"] == "switch_merge_sort"
+
+    def test_no_target_leakage(self):
+        overlap = ALLOWED_FEATURES.intersection(LEAKAGE_COLS)
+        assert not overlap, f"Leakage fields in feature list: {overlap}"
+
+    def test_deterministic_sorting(self):
+        # Verify columns are sorted as defined in STABLE_COLUMN_ORDER
+        df = extract_dataset()
+        cols = list(df.columns)
+        # Check order is stable and matches subset of STABLE_COLUMN_ORDER
+        from ml.src.extract_dataset import STABLE_COLUMN_ORDER
+        expected = [c for c in STABLE_COLUMN_ORDER if c in cols]
+        assert cols == expected
+
+    def test_pipeline_csv_creation(self):
+        df = extract_dataset()
+        save_dataset(df)
+        from ml.src.extract_dataset import OUTPUT_FILE
+        assert OUTPUT_FILE.exists()
+

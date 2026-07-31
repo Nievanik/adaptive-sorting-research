@@ -23,7 +23,11 @@ import pandas as pd
 # Paths
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 CSV_PATH = PROJECT_ROOT / "ml" / "data" / "processed" / "checkpoint_training.csv"
+
 
 # ---------------------------------------------------------------------------
 # Expected values
@@ -217,22 +221,63 @@ def check_coverage(df: pd.DataFrame, results: CheckResult) -> None:
                      f"mismatched pairs:\n{bad.to_string()}")
 
 
+LEAKAGE_COLS = {
+    "continue_time_ms", "continue_comparisons", "continue_data_movements", "continue_overhead_time_ms",
+    "switch_insertion_sort_time_ms", "switch_insertion_sort_comparisons", "switch_insertion_sort_data_movements", "switch_insertion_sort_overhead_time_ms",
+    "switch_merge_sort_time_ms", "switch_merge_sort_comparisons", "switch_merge_sort_data_movements", "switch_merge_sort_overhead_time_ms",
+    "switch_quick_sort_time_ms", "switch_quick_sort_comparisons", "switch_quick_sort_data_movements", "switch_quick_sort_overhead_time_ms",
+    "best_action_total_ms", "speedup_vs_continue"
+}
+
+ALLOWED_FEATURES = {
+    "algorithm", "input_type", "size", "checkpoint_pct",
+    "checkpoint_time_ms", "checkpoint_comparisons", "checkpoint_data_movements",
+    "comparisons_per_element", "movements_per_element", "work_ratio", "time_per_element_ms"
+}
+
+def check_target_leakage(df: pd.DataFrame, results: CheckResult) -> None:
+    """Check 12: Ensure allowed training features do not contain any leakage columns."""
+    overlap = ALLOWED_FEATURES.intersection(LEAKAGE_COLS)
+    if not overlap:
+        results.ok("target_leakage_check", "No leakage columns in the allowed feature list.")
+    else:
+        results.fail("target_leakage_check", f"Leakage columns found in feature list: {overlap}")
+
+
 # ---------------------------------------------------------------------------
 # Summary statistics (informational, not a pass/fail check)
 # ---------------------------------------------------------------------------
 
 def print_summary_stats(df: pd.DataFrame) -> None:
-    print("\n── Label distribution ──")
+    print("\n-- Total Rows and Columns --")
+    print(f"Rows: {df.shape[0]}, Columns: {df.shape[1]}")
+
+    print("\n-- Missing Values --")
+    print(df.isna().sum().to_string())
+
+    print("\n-- Duplicate Count --")
+    print(f"Duplicates: {df.duplicated().sum()}")
+
+    print("\n-- Feature Data Types --")
+    print(df.dtypes.to_string())
+
+    print("\n-- Algorithm Distribution --")
+    print(df["algorithm"].value_counts().to_string())
+
+    print("\n-- Input Distribution --")
+    print(df["input_type"].value_counts().to_string())
+
+    print("\n-- Label Distribution --")
     print(df["best_action"].value_counts().to_string())
 
-    print("\n── Label distribution by algorithm ──")
+    print("\n-- Checkpoint PCT Range --")
+    print(f"Min: {df['checkpoint_pct'].min():.2f}%, Max: {df['checkpoint_pct'].max():.2f}%")
+
+    print("\n-- Label distribution by algorithm --")
     print(df.groupby(["algorithm", "best_action"]).size()
           .unstack(fill_value=0).to_string())
 
-    print("\n── Checkpoint PCT stats ──")
-    print(df["checkpoint_pct"].describe().to_string())
-
-    print("\n── Rows where switching is clearly better (speedup >= 2x) ──")
+    print("\n-- Rows where switching is clearly better (speedup >= 2x) --")
     big_wins = df[df["speedup_vs_continue"] >= 2.0]
     print(f"  {len(big_wins)} rows")
 
@@ -259,6 +304,7 @@ def validate() -> bool:
     check_best_action_self_switch(df, results)
     check_speedup_consistency(df, results)
     check_coverage(df, results)
+    check_target_leakage(df, results)
 
     print_summary_stats(df)
 
@@ -268,3 +314,4 @@ def validate() -> bool:
 if __name__ == "__main__":
     ok = validate()
     sys.exit(0 if ok else 1)
+

@@ -25,11 +25,10 @@ _POSSIBLE_ACTIONS: list[str] = [
 ]
 
 
-def _total_time(row: pd.Series, action: str) -> float | None:
-    """Return total elapsed time (checkpoint + action) for a given action.
+def _remaining_time(row: pd.Series, action: str) -> float | None:
+    """Return remaining elapsed time for a given action.
 
-    Returns None if the action column is absent or NaN for this row
-    (i.e., an algorithm cannot switch to itself).
+    Returns None if the action column is absent or NaN for this row.
     """
     col = f"{action}_time_ms"
     if col not in row.index:
@@ -37,7 +36,7 @@ def _total_time(row: pd.Series, action: str) -> float | None:
     val = row[col]
     if pd.isna(val):
         return None
-    return float(row["checkpoint_time_ms"]) + float(val)
+    return float(val)
 
 
 def assign_labels(df: pd.DataFrame) -> pd.DataFrame:
@@ -54,29 +53,45 @@ def assign_labels(df: pd.DataFrame) -> pd.DataFrame:
     -------
     pd.DataFrame
         Same DataFrame with three new columns appended:
-        - best_action          : str  — action name with lowest total time
-        - best_action_total_ms : float — winning total time in ms
-        - speedup_vs_continue  : float — continue_total / best_total (≥1 means switching wins)
+        - best_action          : str  — action name with lowest remaining time
+        - best_action_total_ms : float — winning total time in ms (checkpoint + remaining)
+        - speedup_vs_continue  : float — continue_total / best_total (>=1 means switching wins)
     """
     best_actions: list[str] = []
     best_totals: list[float] = []
     speedups: list[float] = []
 
-    for _, row in df.iterrows():
-        continue_total = float(row["checkpoint_time_ms"]) + float(row["continue_time_ms"])
+    # Deterministic tie-breaking order: continue has highest preference,
+    # followed alphabetically/logically by others.
+    tie_break_order = ["continue", "switch_quick_sort", "switch_merge_sort", "switch_insertion_sort"]
 
-        # Build candidate map: action_name -> total_time (only for available actions)
-        candidates: dict[str, float] = {"continue": continue_total}
+    for _, row in df.iterrows():
+        checkpoint_time = float(row.get("checkpoint_time_ms", 0.0))
+        continue_remaining = float(row.get("continue_time_ms", 0.0))
+        continue_total = checkpoint_time + continue_remaining
+
+        # Build candidate map: action_name -> remaining_time
+        candidates: dict[str, float] = {"continue": continue_remaining}
         for action in _POSSIBLE_ACTIONS:
             if action == "continue":
                 continue
-            t = _total_time(row, action)
-            if t is not None:
-                candidates[action] = t
+            r_time = _remaining_time(row, action)
+            if r_time is not None:
+                candidates[action] = r_time
 
-        # Pick the minimum
-        best = min(candidates, key=lambda a: candidates[a])
-        best_total = candidates[best]
+        # Find the minimum remaining time with deterministic tie-breaking.
+        # We sort candidates by remaining time (ascending) and then by their position in tie_break_order.
+        def sort_key(action_name: str) -> tuple[float, int]:
+            val = candidates[action_name]
+            try:
+                prio = tie_break_order.index(action_name)
+            except ValueError:
+                prio = 999
+            return (val, prio)
+
+        best = min(candidates.keys(), key=sort_key)
+        best_remaining = candidates[best]
+        best_total = checkpoint_time + best_remaining
         speedup = continue_total / best_total if best_total > 0 else 1.0
 
         best_actions.append(best)
@@ -89,6 +104,7 @@ def assign_labels(df: pd.DataFrame) -> pd.DataFrame:
     df["speedup_vs_continue"] = speedups
 
     return df
+
 
 
 if __name__ == "__main__":
