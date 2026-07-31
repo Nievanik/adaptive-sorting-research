@@ -1,4 +1,5 @@
 {
+  "python.defaultInterpreterPath": "${workspaceFolder}/research_env/bin/python",
   "python.analysis.extraPaths": [
     "./ml/src"
   ]

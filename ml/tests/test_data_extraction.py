@@ -344,7 +344,7 @@ class TestNoSortingCodeImported:
         # (not our own extract/label modules)
         suspicious = {m for m in overlap
                       if "extract" not in m and "label" not in m and "test" not in m
-                      and m != "__main__"}
+                      and m not in ("__main__", "__mp_main__")}
         assert not suspicious, \
             f"Potential sorting modules imported: {suspicious}"
 
