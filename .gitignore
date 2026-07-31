@@ -5,3 +5,16 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 keepa.md
+
+# ML generated files
+ml/models/*
+!ml/models/.gitkeep
+
+ml/checkpoints/*
+!ml/checkpoints/.gitkeep
+
+ml/results/*
+!ml/results/.gitkeep
+
+ml/dataset/ml_training/*
+!ml/dataset/ml_training/.gitkeep
