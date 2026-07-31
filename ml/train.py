@@ -23,10 +23,26 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from ml.src.preprocess import prepare_training_data
+from ml.src.evaluate import (
+    class_distribution,
+    evaluate_predictions,
+    cross_validate_pipeline,
+    print_evaluation_report,
+)
 
 CSV_PATH = PROJECT_ROOT / "ml" / "data" / "processed" / "checkpoint_training.csv"
 MODEL_DIR = PROJECT_ROOT / "ml" / "models"
 MODEL_OUTPUT_PATH = MODEL_DIR / "random_forest_baseline.joblib"
+
+
+def build_training_pipeline(preprocessor) -> Pipeline:
+    """Build the training pipeline with the preprocessor and classifier."""
+    return Pipeline(
+        steps=[
+            ("preprocessor", preprocessor),
+            ("classifier", RandomForestClassifier(random_state=42)),
+        ]
+    )
 
 
 def train_model() -> None:
@@ -36,35 +52,30 @@ def train_model() -> None:
     print(f"Loading and preprocessing data from {CSV_PATH}...")
     X, y, preprocessor = prepare_training_data(CSV_PATH)
 
+    print("Calculating class distribution...")
+    class_dist_df = class_distribution(y)
+
     print("Splitting dataset into train/test sets...")
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
     print("Building scikit-learn pipeline...")
-    pipeline = Pipeline(
-        steps=[
-            ("preprocessor", preprocessor),
-            ("classifier", RandomForestClassifier(random_state=42)),
-        ]
-    )
+    pipeline = build_training_pipeline(preprocessor)
 
     print("Training model...")
     pipeline.fit(X_train, y_train)
 
     print("Evaluating model...")
     y_pred = pipeline.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    report = classification_report(y_test, y_pred)
-    matrix = confusion_matrix(y_test, y_pred)
+    holdout_metrics = evaluate_predictions(y_test, y_pred)
 
-    print("\n================ Evaluation Results ================")
-    print(f"Accuracy: {accuracy:.4f}")
-    print("\nClassification Report:")
-    print(report)
-    print("Confusion Matrix:")
-    print(matrix)
-    print("====================================================\n")
+    print("Running stratified cross-validation...")
+    unfitted_pipeline = build_training_pipeline(preprocessor)
+    cv_results = cross_validate_pipeline(unfitted_pipeline, X, y)
+
+    # Print integrated report
+    print_evaluation_report(class_dist_df, holdout_metrics, cv_results)
 
     # Save model pipeline
     print(f"Saving model to {MODEL_OUTPUT_PATH}...")
@@ -75,3 +86,4 @@ def train_model() -> None:
 
 if __name__ == "__main__":
     train_model()
+
