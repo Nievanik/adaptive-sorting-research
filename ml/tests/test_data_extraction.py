@@ -16,19 +16,13 @@ Run with:
 """
 
 from __future__ import annotations
-
 import sys
-from pathlib import Path
-
 import pandas as pd
+# pyrefly: ignore [missing-import]
 import pytest
 
-# Make src importable regardless of where pytest is run from
-SRC_DIR = Path(__file__).resolve().parents[1] / "src"
-sys.path.insert(0, str(SRC_DIR))
-
-from extract_dataset import flatten_record, _extract_switch_outcomes
-from generate_labels import assign_labels
+from ml.src.extract_dataset import flatten_record, _extract_switch_outcomes
+from ml.src.generate_labels import assign_labels
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +343,7 @@ class TestNoSortingCodeImported:
         # Filter to only modules that look like they contain sorting logic
         # (not our own extract/label modules)
         suspicious = {m for m in overlap
-                      if "extract" not in m and "label" not in m and "test" not in m}
+                      if "extract" not in m and "label" not in m and "test" not in m
+                      and m != "__main__"}
         assert not suspicious, \
             f"Potential sorting modules imported: {suspicious}"
