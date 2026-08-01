@@ -11,12 +11,14 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-import joblib
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
+import joblib  
+import pandas as pd  
+import numpy as np 
+import matplotlib  
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt 
+from sklearn.pipeline import Pipeline 
+from sklearn.compose import ColumnTransformer 
 
 # Ensure PROJECT_ROOT is in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
