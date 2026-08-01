@@ -2,11 +2,22 @@ research_env/
 data/
 results/
 __pycache__/
+*.pyc
+*.pyo
 .ipynb_checkpoints/
 .DS_Store
 keepa.md
 
-# ML generated files
+# Pytest and coverage cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Matplotlib font/config cache (use MPLCONFIGDIR=/tmp/mpl_cache instead)
+.matplotlib/
+
+# ML generated files — models, results, and publication outputs are
+# reproducible from source and are tracked via .gitkeep sentinels only.
 ml/models/*
 !ml/models/.gitkeep
 

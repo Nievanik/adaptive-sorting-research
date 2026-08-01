@@ -354,8 +354,8 @@ def parse_args(args: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--model-path",
         type=str,
-        default=str(PROJECT_ROOT / "ml" / "models" / "random_forest_baseline.joblib"),
-        help="Path to the saved pipeline."
+        default=str(PROJECT_ROOT / "ml" / "models" / "adaptive_sort_model.joblib"),
+        help="Path to the saved pipeline (default: production model)."
     )
 
     return parser.parse_args(args)
