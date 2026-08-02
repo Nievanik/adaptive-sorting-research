@@ -1,0 +1,20 @@
+{
+  "random_seed": 42,
+  "warmup_runs": 10,
+  "measured_repetitions": 100,
+  "array_sizes": [100, 500, 1000, 5000, 10000],
+  "input_types": [
+    "random",
+    "sorted",
+    "reverse_sorted",
+    "nearly_sorted",
+    "duplicate_heavy",
+    "all_equal"
+  ],
+  "starting_algorithms": [
+    "insertion_sort",
+    "merge_sort",
+    "quick_sort"
+  ],
+  "checkpoint_pct": 50.0
+}

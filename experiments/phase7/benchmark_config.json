@@ -1,0 +1,27 @@
+{
+  "random_seed": 42,
+  "repetitions": 100,
+  "checkpoint_pct": 50.0,
+  "array_sizes": [100, 500, 1000, 5000, 10000],
+  "input_types": [
+    "random",
+    "sorted",
+    "reverse_sorted",
+    "nearly_sorted",
+    "duplicate_heavy",
+    "all_equal"
+  ],
+  "starting_algorithms": [
+    "insertion_sort",
+    "merge_sort",
+    "quick_sort"
+  ],
+  "strategies": [
+    "adaptive_ml",
+    "always_continue",
+    "quick_sort",
+    "merge_sort",
+    "insertion_sort",
+    "python_timsort"
+  ]
+}
